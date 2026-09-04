@@ -5,6 +5,10 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Bethle Digital Form</title>
   
+  <!-- PWA Meta Tags for Installable App -->
+  <meta name="theme-color" content="#2e7d32">
+  <link rel="manifest" href="manifest.json">
+  
   <!-- Libraries for PDF Export -->
   <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.5.28/jspdf.plugin.autotable.min.js"></script>
@@ -38,7 +42,7 @@
       margin: 0 auto;
     }
 
-    /* Green Header with Page-Coil Effect */
+    /* Green Header Card with Page Fold */
     .header-card {
       position: relative;
       background: linear-gradient(135deg, var(--primary-green), var(--dark-green));
@@ -50,7 +54,6 @@
       overflow: hidden;
     }
 
-    /* Page Coil / Folded Corner Style */
     .header-card::after {
       content: "";
       position: absolute;
@@ -92,14 +95,9 @@
       font-weight: 600;
       font-size: 14px;
       cursor: pointer;
-      transition: background 0.2s ease;
     }
 
-    .btn-create:hover {
-      background-color: #2563eb;
-    }
-
-    /* Cards & Form Elements */
+    /* Cards */
     .card {
       background: var(--card-bg);
       border-radius: 10px;
@@ -108,29 +106,25 @@
       box-shadow: 0 2px 6px rgba(0,0,0,0.05);
     }
 
-    /* Responses: Question Large, Answer Bold */
+    /* Image 2 Request: Answers BOLD, Question Normal */
     .response-group {
-      margin-bottom: 18px;
+      margin-bottom: 16px;
     }
 
-    .response-group:last-child {
-      margin-bottom: 0;
-    }
-
-    .question-label {
-      font-size: 17px;
-      font-weight: 600;
-      color: var(--text-dark);
-      margin-bottom: 4px;
-    }
-
-    .answer-value {
+    .question-label-normal {
       font-size: 15px;
-      font-weight: 700;
+      font-weight: 400; /* Regular weight for question */
+      color: #4b5563;
+      margin-bottom: 2px;
+    }
+
+    .answer-value-bold {
+      font-size: 16px;
+      font-weight: 700; /* Bold weight for answer */
       color: #111827;
     }
 
-    /* Creator & Sector Controls */
+    /* Form Fields & Controls */
     .sector-item {
       border: 1px solid #e5e7eb;
       padding: 14px;
@@ -141,7 +135,7 @@
 
     .form-control {
       width: 100%;
-      padding: 8px 12px;
+      padding: 12px;
       margin-top: 6px;
       margin-bottom: 10px;
       border: 1px solid #d1d5db;
@@ -181,13 +175,20 @@
     .hidden {
       display: none;
     }
+
+    .action-links a {
+      color: #2563eb;
+      text-decoration: none;
+      font-size: 13px;
+      font-weight: 500;
+      margin-left: 8px;
+    }
   </style>
 </head>
 <body>
 
 <div class="container">
-  <!-- Header Card -->
-  <div class="header-card">
+  <div class="header-card" id="main-header">
     <div class="header-top">
       <div class="header-title">
         <h1>Your forms</h1>
@@ -197,7 +198,6 @@
     </div>
   </div>
 
-  <!-- Dynamic Views -->
   <div id="main-content"></div>
 </div>
 
