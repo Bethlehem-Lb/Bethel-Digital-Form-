@@ -75,7 +75,7 @@ function showFormBuilder(editIndex = null) {
   }
 }
 
-// Add Dynamic Field Sector with Unlimited Column Print Triggers
+// Add Dynamic Field Sector with Updated "Print" Label & Expanded Types
 function addFieldSector(existingData = null) {
   const container = document.getElementById('fields-container');
   const fieldId = existingData ? existingData.id : Date.now() + Math.random().toString(36).substring(2, 5);
@@ -86,7 +86,9 @@ function addFieldSector(existingData = null) {
   
   const selectedType = existingData ? existingData.type : 'short';
   const selectedTrigger = existingData ? existingData.trigger : 'none';
-  const optionsVal = existingData ? existingData.options.join(', ') : '';
+  const optionsVal = existingData && existingData.options ? existingData.options.join(', ') : '';
+
+  const showOptions = ['dropdown', 'radio', 'checkbox_multi', 'scale'].includes(selectedType);
 
   sectorDiv.innerHTML = `
     <div style="display:flex; gap:10px;">
@@ -95,19 +97,22 @@ function addFieldSector(existingData = null) {
         <option value="short" ${selectedType === 'short' ? 'selected' : ''}>Short text</option>
         <option value="paragraph" ${selectedType === 'paragraph' ? 'selected' : ''}>Paragraph</option>
         <option value="dropdown" ${selectedType === 'dropdown' ? 'selected' : ''}>Dropdown</option>
-        <option value="scale" ${selectedType === 'scale' ? 'selected' : ''}>Linear Scale / Ratio (7/10)</option>
-        <option value="checkbox" ${selectedType === 'checkbox' ? 'selected' : ''}>Single Checkbox</option>
+        <option value="radio" ${selectedType === 'radio' ? 'selected' : ''}>Multiple choice</option>
+        <option value="checkbox_multi" ${selectedType === 'checkbox_multi' ? 'selected' : ''}>Checkboxes (multi-select)</option>
+        <option value="checkbox" ${selectedType === 'checkbox' ? 'selected' : ''}>Single checkbox</option>
+        <option value="date" ${selectedType === 'date' ? 'selected' : ''}>Date</option>
+        <option value="time" ${selectedType === 'time' ? 'selected' : ''}>Time</option>
+        <option value="scale" ${selectedType === 'scale' ? 'selected' : ''}>Linear scale</option>
       </select>
     </div>
 
-    <div id="options-container-${fieldId}" class="${(selectedType === 'dropdown' || selectedType === 'scale') ? '' : 'hidden'}" style="margin-bottom:10px;">
+    <div id="options-container-${fieldId}" class="${showOptions ? '' : 'hidden'}" style="margin-bottom:10px;">
       <input type="text" class="form-control field-options" placeholder="Options separated by comma (e.g. Male, Female)" value="${escapeHtml(optionsVal)}">
     </div>
 
     <div class="trigger-container">
-      <label style="font-weight:600;">Print Trigger Column:</label>
-      <input type="number" class="trigger-select field-trigger" min="0" max="20" placeholder="Col #" value="${selectedTrigger !== 'none' ? selectedTrigger : ''}" style="width:70px;">
-      <span style="font-size:11px; color:#6b7280;">(Enter 1, 2, 3... or leave empty)</span>
+      <span style="font-weight:400; font-size:14px; color:#374151;">Print</span>
+      <input type="number" class="trigger-select field-trigger" min="0" max="20" placeholder="Col #" value="${selectedTrigger !== 'none' ? selectedTrigger : ''}" style="width:75px; opacity:0.65; color:#6b7280;">
       <button style="margin-left:auto; color:#dc2626; background:none; border:none; cursor:pointer;" onclick="document.getElementById('sector-${fieldId}').remove()">Remove</button>
     </div>
   `;
@@ -117,14 +122,14 @@ function addFieldSector(existingData = null) {
 
 function handleTypeChange(fieldId, type) {
   const optContainer = document.getElementById(`options-container-${fieldId}`);
-  if (type === 'dropdown' || type === 'scale') {
+  if (['dropdown', 'radio', 'checkbox_multi', 'scale'].includes(type)) {
     optContainer.classList.remove('hidden');
   } else {
     optContainer.classList.add('hidden');
   }
 }
 
-// Save or Update Form
+// Save or Update Form & Display Direct Share Modal
 function saveFormSchema() {
   const title = document.getElementById('form-title').value.trim();
   const description = document.getElementById('form-desc').value.trim();
@@ -149,18 +154,22 @@ function saveFormSchema() {
         label,
         type,
         trigger: triggerVal ? triggerVal : 'none',
-        options: optionsVal ? optionsVal.split(',').map(o => o.trim()) : []
+        options: optionsVal ? optionsVal.split(',').map(o => o.trim()).filter(Boolean) : []
       });
     }
   });
+
+  let savedFormId;
 
   if (editingFormIndex !== null) {
     forms[editingFormIndex].title = title;
     forms[editingFormIndex].description = description;
     forms[editingFormIndex].fields = fields;
+    savedFormId = forms[editingFormIndex].id;
   } else {
+    savedFormId = Date.now();
     forms.push({
-      id: Date.now(),
+      id: savedFormId,
       title,
       description,
       createdAt: new Date().toLocaleDateString(),
@@ -170,11 +179,47 @@ function saveFormSchema() {
   }
 
   localStorage.setItem('bethle_forms', JSON.stringify(forms));
+  const wasEditing = editingFormIndex !== null;
   editingFormIndex = null;
   renderHomeView();
+
+  if (!wasEditing) {
+    displayShareModal(savedFormId);
+  }
 }
 
-// Image 1 Request: Form Filler with Label Placeholders Inside Boxes
+// Display Generated Share Link Modal
+function displayShareModal(formId) {
+  const shareUrl = `${window.location.origin}${window.location.pathname}?fill=${formId}`;
+  
+  const modalDiv = document.createElement('div');
+  modalDiv.style.position = 'fixed';
+  modalDiv.style.top = '0';
+  modalDiv.style.left = '0';
+  modalDiv.style.width = '100vw';
+  modalDiv.style.height = '100vh';
+  modalDiv.style.background = 'rgba(0,0,0,0.5)';
+  modalDiv.style.display = 'flex';
+  modalDiv.style.alignItems = 'center';
+  modalDiv.style.justifyContent = 'center';
+  modalDiv.style.zIndex = '9999';
+
+  modalDiv.innerHTML = `
+    <div style="background:white; padding:24px; border-radius:12px; max-width:480px; width:90%; box-shadow:0 10px 25px rgba(0,0,0,0.2);">
+      <h3 style="margin-bottom:10px; color:#2e7d32;">Form Created Successfully!</h3>
+      <p style="font-size:14px; color:#4b5563; margin-bottom:14px;">Copy and share this direct link with responders (they will only see the form fill screen):</p>
+      <input type="text" readonly value="${shareUrl}" style="width:100%; padding:10px; border:1px solid #ccc; border-radius:6px; font-size:13px; margin-bottom:14px;">
+      <div style="display:flex; gap:10px;">
+        <button class="action-btn" style="margin-top:0;" onclick="navigator.clipboard.writeText('${shareUrl}'); alert('Link copied to clipboard!');">Copy Link</button>
+        <button class="action-btn" style="margin-top:0; background:#6b7280;" onclick="this.closest('div').parentElement.parentElement.remove()">Done</button>
+      </div>
+    </div>
+  `;
+
+  document.body.appendChild(modalDiv);
+}
+
+// Form Filler Interface
 function openFormFiller(index, isPublicShare = false) {
   const form = forms[index];
   const main = document.getElementById('main-content');
@@ -187,16 +232,49 @@ function openFormFiller(index, isPublicShare = false) {
       inputHTML = `<input type="text" name="${field.id}" class="form-control" placeholder="${placeholderText}" required>`;
     } else if (field.type === 'paragraph') {
       inputHTML = `<textarea name="${field.id}" class="form-control" rows="3" placeholder="${placeholderText}"></textarea>`;
-    } else if (field.type === 'dropdown' || field.type === 'scale') {
-      const opts = field.options.length > 0 ? field.options : (field.type === 'scale' ? ['1/10', '2/10', '3/10', '4/10', '5/10', '6/10', '7/10', '8/10', '9/10', '10/10'] : ['Option 1']);
+    } else if (field.type === 'date') {
+      inputHTML = `<input type="date" name="${field.id}" class="form-control" required>`;
+    } else if (field.type === 'time') {
+      inputHTML = `<input type="time" name="${field.id}" class="form-control" required>`;
+    } else if (field.type === 'dropdown') {
+      const opts = field.options.length > 0 ? field.options : ['Option 1'];
       inputHTML = `
         <select name="${field.id}" class="form-control">
           <option value="" disabled selected>${placeholderText}</option>
           ${opts.map(o => `<option value="${escapeHtml(o)}">${escapeHtml(o)}</option>`).join('')}
         </select>
       `;
+    } else if (field.type === 'scale') {
+      const opts = field.options.length > 0 ? field.options : ['1', '2', '3', '4', '5'];
+      inputHTML = `
+        <label style="font-size:14px; font-weight:600; display:block; margin-bottom:6px;">${placeholderText}</label>
+        <select name="${field.id}" class="form-control">
+          <option value="" disabled selected>Select Rating</option>
+          ${opts.map(o => `<option value="${escapeHtml(o)}">${escapeHtml(o)}</option>`).join('')}
+        </select>
+      `;
+    } else if (field.type === 'radio') {
+      const opts = field.options.length > 0 ? field.options : ['Option 1'];
+      inputHTML = `
+        <label style="font-size:14px; font-weight:600; display:block; margin-bottom:6px;">${placeholderText}</label>
+        ${opts.map(o => `
+          <label style="display:block; margin-bottom:4px; font-size:14px;">
+            <input type="radio" name="${field.id}" value="${escapeHtml(o)}"> ${escapeHtml(o)}
+          </label>
+        `).join('')}
+      `;
+    } else if (field.type === 'checkbox_multi') {
+      const opts = field.options.length > 0 ? field.options : ['Option 1'];
+      inputHTML = `
+        <label style="font-size:14px; font-weight:600; display:block; margin-bottom:6px;">${placeholderText}</label>
+        ${opts.map(o => `
+          <label style="display:block; margin-bottom:4px; font-size:14px;">
+            <input type="checkbox" name="${field.id}" value="${escapeHtml(o)}"> ${escapeHtml(o)}
+          </label>
+        `).join('')}
+      `;
     } else if (field.type === 'checkbox') {
-      inputHTML = `<label><input type="checkbox" name="${field.id}" value="True"> ${placeholderText}</label>`;
+      inputHTML = `<label style="font-size:14px;"><input type="checkbox" name="${field.id}" value="True"> ${placeholderText}</label>`;
     }
 
     return `<div style="margin-bottom:14px;">${inputHTML}</div>`;
@@ -214,7 +292,7 @@ function openFormFiller(index, isPublicShare = false) {
   `;
 }
 
-// Handle Form Submission
+// Handle Form Submission with Slash Separator for Multi-Select Checkboxes
 function handleFormSubmit(event, index, isPublicShare) {
   event.preventDefault();
   const formData = new FormData(event.target);
@@ -224,7 +302,12 @@ function handleFormSubmit(event, index, isPublicShare) {
   };
 
   forms[index].fields.forEach(field => {
-    responseObj.answers[field.id] = formData.get(field.id) || 'N/A';
+    if (field.type === 'checkbox_multi') {
+      const selected = formData.getAll(field.id);
+      responseObj.answers[field.id] = selected.length > 0 ? selected.join('/') : 'N/A';
+    } else {
+      responseObj.answers[field.id] = formData.get(field.id) || 'N/A';
+    }
   });
 
   forms[index].responses.push(responseObj);
@@ -243,7 +326,7 @@ function handleFormSubmit(event, index, isPublicShare) {
   }
 }
 
-// Share Functionality
+// Share Link Function
 function shareFormLink(formId) {
   const shareUrl = `${window.location.origin}${window.location.pathname}?fill=${formId}`;
   navigator.clipboard.writeText(shareUrl).then(() => {
@@ -253,9 +336,15 @@ function shareFormLink(formId) {
   });
 }
 
-// Image 2 Request: Question Regular Weight, Answer BOLD
+// View Responses with Search Button / Filter
 function viewResponses(index) {
   const form = forms[index];
+  window.currentViewingFormIndex = index;
+  renderResponsesList(form, '');
+}
+
+// Render Filtered Responses
+function renderResponsesList(form, searchQuery = '') {
   const main = document.getElementById('main-content');
 
   if (!form.responses || form.responses.length === 0) {
@@ -269,7 +358,17 @@ function viewResponses(index) {
     return;
   }
 
-  let responsesHTML = form.responses.map((resp, rIndex) => {
+  const query = searchQuery.toLowerCase().trim();
+
+  const filteredResponses = form.responses.filter(resp => {
+    if (!query) return true;
+    return form.fields.some(field => {
+      const answerVal = String(resp.answers[field.id] || '').toLowerCase();
+      return answerVal.includes(query);
+    });
+  });
+
+  let responsesHTML = filteredResponses.map((resp, rIndex) => {
     let answersList = form.fields.map(field => `
       <div class="response-group">
         <div class="question-label-normal">${escapeHtml(field.label)}</div>
@@ -288,22 +387,32 @@ function viewResponses(index) {
   }).join('');
 
   main.innerHTML = `
-    <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:16px;">
+    <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:12px;">
       <h2>${escapeHtml(form.title)}</h2>
-      <button class="btn-create" style="background:#059669;" onclick="generatePDFReport(${index})">Export PDF</button>
+      <button class="btn-create" style="background:#059669;" onclick="generatePDFReport(${window.currentViewingFormIndex})">Export PDF</button>
     </div>
-    ${responsesHTML}
+
+    <div style="margin-bottom:16px;">
+      <input type="text" id="response-search" class="form-control" placeholder="Search/Filter answers..." value="${escapeHtml(searchQuery)}" oninput="filterResponses(this.value)">
+    </div>
+
+    ${filteredResponses.length > 0 ? responsesHTML : '<div class="card"><p style="color:#7f8c8d;">No matching responses found.</p></div>'}
+    
     <button class="action-btn" style="background:#6b7280; margin-top:10px;" onclick="renderHomeView()">Back to Home</button>
   `;
 }
 
-// Flexible Print Trigger Report Generator
+function filterResponses(query) {
+  const form = forms[window.currentViewingFormIndex];
+  renderResponsesList(form, query);
+}
+
+// Generate PDF Report with Slashes for Checkboxes
 function generatePDFReport(index) {
   const form = forms[index];
   const { jsPDF } = window.jspdf;
   const doc = new jsPDF();
 
-  // Find all fields that have a numeric print trigger
   const triggeredFields = form.fields
     .filter(f => f.trigger !== 'none' && !isNaN(parseInt(f.trigger)))
     .sort((a, b) => parseInt(a.trigger) - parseInt(b.trigger));
