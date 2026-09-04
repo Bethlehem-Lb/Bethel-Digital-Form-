@@ -1,46 +1,67 @@
-// State Management
-let forms = JSON.parse(localStorage.getItem('bethle_forms')) || [];
+// Configuration - Replace with your actual Supabase credentials
+const SUPABASE_URL = 'YOUR_SUPABASE_PROJECT_URL';
+const SUPABASE_ANON_KEY = 'YOUR_SUPABASE_ANON_KEY';
+
+const supabase = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+
+let formsCache = [];
 let editingFormIndex = null;
 
-// Initialize App & Handle Direct Share Link
-document.addEventListener('DOMContentLoaded', () => {
+// Initialize App
+document.addEventListener('DOMContentLoaded', async () => {
   const urlParams = new URLSearchParams(window.location.search);
   const fillFormId = urlParams.get('fill');
 
   if (fillFormId) {
-    const targetIndex = forms.findIndex(f => String(f.id) === String(fillFormId));
-    if (targetIndex !== -1) {
-      document.getElementById('main-header').style.display = 'none'; // Hide Admin Header
-      openFormFiller(targetIndex, true);
-      return;
-    }
+    document.getElementById('main-header').style.display = 'none';
+    await loadAndRenderFiller(fillFormId);
+    return;
   }
-  renderHomeView();
+  
+  await fetchAllForms();
 });
 
-// Render Home View (Admin Dashboard)
+// Fetch All Forms & Responses from Supabase
+async function fetchAllForms() {
+  const main = document.getElementById('main-content');
+  main.innerHTML = `<div class="card"><p style="text-align:center;">Loading forms...</p></div>`;
+
+  const { data: forms, error } = await supabase
+    .from('forms')
+    .select('*, responses(*)');
+
+  if (error) {
+    alert('Error loading forms: ' + error.message);
+    return;
+  }
+
+  formsCache = forms || [];
+  renderHomeView();
+}
+
+// Render Admin Dashboard View
 function renderHomeView() {
   const main = document.getElementById('main-content');
   document.getElementById('main-header').style.display = 'block';
 
-  if (forms.length === 0) {
+  if (formsCache.length === 0) {
     main.innerHTML = `<div class="card"><p style="text-align:center; color:#7f8c8d;">No forms created yet. Click "+ Create form" above to start.</p></div>`;
     return;
   }
 
-  let html = forms.map((form, index) => `
+  let html = formsCache.map((form, index) => `
     <div class="card">
       <div style="display:flex; justify-content:space-between; align-items:flex-start;">
         <div>
           <h3 style="font-size:18px; font-weight:700;">${escapeHtml(form.title)}</h3>
-          <p style="font-size:12px; color:#7f8c8d; margin-top:4px;">${form.createdAt}</p>
+          <p style="font-size:12px; color:#7f8c8d; margin-top:4px;">${new Date(form.created_at).toLocaleDateString()}</p>
         </div>
         <div class="action-links">
           <a href="#" onclick="showFormBuilder(${index})">Edit</a>
-          <a href="#" onclick="openFormFiller(${index})">Fill</a>
+          <a href="#" onclick="openFormFillerLocally(${index})">Fill</a>
           <a href="#" onclick="shareFormLink(${form.id})">Share</a>
           <a href="#" onclick="viewResponses(${index})">Responses (${form.responses ? form.responses.length : 0})</a>
-          <a href="#" style="color:#dc2626;" onclick="deleteForm(${index})">Delete</a>
+          <a href="#" style="color:#dc2626;" onclick="deleteForm(${form.id})">Delete</a>
         </div>
       </div>
     </div>
@@ -49,20 +70,23 @@ function renderHomeView() {
   main.innerHTML = html;
 }
 
-// Delete Form Function
-function deleteForm(index) {
-  if (confirm(`Are you sure you want to delete "${forms[index].title}"? This action cannot be undone.`)) {
-    forms.splice(index, 1);
-    localStorage.setItem('bethle_forms', JSON.stringify(forms));
-    renderHomeView();
+// Delete Form from Cloud Database
+async function deleteForm(formId) {
+  if (confirm('Are you sure you want to delete this form? All responses will also be deleted.')) {
+    const { error } = await supabase.from('forms').delete().eq('id', formId);
+    if (error) {
+      alert('Delete failed: ' + error.message);
+      return;
+    }
+    await fetchAllForms();
   }
 }
 
-// Show Form Builder (Supports Create & Edit)
+// Form Builder UI
 function showFormBuilder(editIndex = null) {
   editingFormIndex = editIndex;
   const isEditing = editIndex !== null;
-  const formToEdit = isEditing ? forms[editIndex] : null;
+  const formToEdit = isEditing ? formsCache[editIndex] : null;
 
   const main = document.getElementById('main-content');
   main.innerHTML = `
@@ -85,7 +109,6 @@ function showFormBuilder(editIndex = null) {
   }
 }
 
-// Add Dynamic Field Sector
 function addFieldSector(existingData = null) {
   const container = document.getElementById('fields-container');
   const fieldId = existingData ? existingData.id : 'field_' + Date.now() + Math.random().toString(36).substring(2, 5);
@@ -140,8 +163,8 @@ function handleTypeChange(fieldId, type) {
   }
 }
 
-// Save or Update Form Schema
-function saveFormSchema() {
+// Save or Update Form in Supabase
+async function saveFormSchema() {
   const title = document.getElementById('form-title').value.trim();
   const description = document.getElementById('form-desc').value.trim();
 
@@ -174,33 +197,36 @@ function saveFormSchema() {
   let savedFormId;
 
   if (editingFormIndex !== null) {
-    forms[editingFormIndex].title = title;
-    forms[editingFormIndex].description = description;
-    forms[editingFormIndex].fields = fields;
-    savedFormId = forms[editingFormIndex].id;
+    const targetForm = formsCache[editingFormIndex];
+    const { error } = await supabase
+      .from('forms')
+      .update({ title, description, fields })
+      .eq('id', targetForm.id);
+
+    if (error) {
+      alert('Error updating form: ' + error.message);
+      return;
+    }
+    savedFormId = targetForm.id;
   } else {
-    savedFormId = Date.now();
-    forms.push({
-      id: savedFormId,
-      title,
-      description,
-      createdAt: new Date().toLocaleDateString(),
-      fields,
-      responses: []
-    });
+    const { data, error } = await supabase
+      .from('forms')
+      .insert([{ title, description, fields }])
+      .select();
+
+    if (error) {
+      alert('Error saving form: ' + error.message);
+      return;
+    }
+    savedFormId = data[0].id;
   }
 
-  localStorage.setItem('bethle_forms', JSON.stringify(forms));
-  const wasEditing = editingFormIndex !== null;
   editingFormIndex = null;
-  renderHomeView();
-
-  if (!wasEditing) {
-    displayShareModal(savedFormId);
-  }
+  await fetchAllForms();
+  displayShareModal(savedFormId);
 }
 
-// Display Generated Share Link Modal
+// Modal displaying generated link
 function displayShareModal(formId) {
   const shareUrl = `${window.location.origin}${window.location.pathname}?fill=${formId}`;
   
@@ -218,8 +244,8 @@ function displayShareModal(formId) {
 
   modalDiv.innerHTML = `
     <div style="background:white; padding:24px; border-radius:12px; max-width:480px; width:90%; box-shadow:0 10px 25px rgba(0,0,0,0.2);">
-      <h3 style="margin-bottom:10px; color:#2e7d32;">Form Created Successfully!</h3>
-      <p style="font-size:14px; color:#4b5563; margin-bottom:14px;">Copy and share this direct link with responders (they will only see the form fill screen):</p>
+      <h3 style="margin-bottom:10px; color:#2e7d32;">Form Saved to Cloud!</h3>
+      <p style="font-size:14px; color:#4b5563; margin-bottom:14px;">Copy and share this public link with responders. They will only see the form filler page:</p>
       <input type="text" readonly value="${shareUrl}" style="width:100%; padding:10px; border:1px solid #ccc; border-radius:6px; font-size:13px; margin-bottom:14px;">
       <div style="display:flex; gap:10px;">
         <button class="action-btn" style="margin-top:0;" onclick="navigator.clipboard.writeText('${shareUrl}'); alert('Link copied to clipboard!');">Copy Link</button>
@@ -231,9 +257,30 @@ function displayShareModal(formId) {
   document.body.appendChild(modalDiv);
 }
 
-// Form Filler View
-function openFormFiller(index, isPublicShare = false) {
-  const form = forms[index];
+// Load Public Filler View
+async function loadAndRenderFiller(formId) {
+  const main = document.getElementById('main-content');
+  main.innerHTML = `<div class="card"><p style="text-align:center;">Loading form...</p></div>`;
+
+  const { data: form, error } = await supabase
+    .from('forms')
+    .select('*')
+    .eq('id', formId)
+    .single();
+
+  if (error || !form) {
+    main.innerHTML = `<div class="card"><p style="color:#dc2626; text-align:center;">Form not found or link has expired.</p></div>`;
+    return;
+  }
+
+  renderFormFillerUI(form, true);
+}
+
+function openFormFillerLocally(index) {
+  renderFormFillerUI(formsCache[index], false);
+}
+
+function renderFormFillerUI(form, isPublic) {
   const main = document.getElementById('main-content');
 
   let fieldsHTML = form.fields.map(field => {
@@ -296,7 +343,7 @@ function openFormFiller(index, isPublicShare = false) {
     <div class="card">
       <h2 style="margin-bottom:6px;">${escapeHtml(form.title)}</h2>
       <p style="color:#7f8c8d; font-size:14px; margin-bottom:16px;">${escapeHtml(form.description)}</p>
-      <form id="submission-form" onsubmit="handleFormSubmit(event, ${index}, ${isPublicShare})">
+      <form id="submission-form" onsubmit="handleFormSubmit(event, ${form.id}, ${isPublic})">
         ${fieldsHTML}
         <button type="submit" class="action-btn">Submit</button>
       </form>
@@ -304,28 +351,36 @@ function openFormFiller(index, isPublicShare = false) {
   `;
 }
 
-// Handle Form Submission Without Ghost Entries
-function handleFormSubmit(event, index, isPublicShare) {
+// Submit Response directly to Supabase
+async function handleFormSubmit(event, formId, isPublic) {
   event.preventDefault();
-  const formData = new FormData(event.target);
-  const responseObj = {
-    submittedAt: new Date().toLocaleString(),
-    answers: {}
-  };
+  const formElement = event.target;
+  const formData = new FormData(formElement);
+  
+  const formObj = formsCache.find(f => String(f.id) === String(formId));
+  const answers = {};
 
-  forms[index].fields.forEach(field => {
-    if (field.type === 'checkbox_multi') {
-      const selected = formData.getAll(field.id);
-      responseObj.answers[field.id] = selected.length > 0 ? selected.join('/') : 'N/A';
-    } else {
-      responseObj.answers[field.id] = formData.get(field.id) || 'N/A';
-    }
-  });
+  if (formObj) {
+    formObj.fields.forEach(field => {
+      if (field.type === 'checkbox_multi') {
+        const selected = formData.getAll(field.id);
+        answers[field.id] = selected.length > 0 ? selected.join('/') : 'N/A';
+      } else {
+        answers[field.id] = formData.get(field.id) || 'N/A';
+      }
+    });
+  }
 
-  forms[index].responses.push(responseObj);
-  localStorage.setItem('bethle_forms', JSON.stringify(forms));
+  const { error } = await supabase
+    .from('responses')
+    .insert([{ form_id: formId, answers }]);
 
-  if (isPublicShare) {
+  if (error) {
+    alert('Submission failed: ' + error.message);
+    return;
+  }
+
+  if (isPublic) {
     document.getElementById('main-content').innerHTML = `
       <div class="card" style="text-align:center; padding:30px;">
         <h2 style="color:#2e7d32;">Thank You!</h2>
@@ -334,11 +389,10 @@ function handleFormSubmit(event, index, isPublicShare) {
     `;
   } else {
     alert('Response submitted successfully!');
-    renderHomeView();
+    await fetchAllForms();
   }
 }
 
-// Share Form Link
 function shareFormLink(formId) {
   const shareUrl = `${window.location.origin}${window.location.pathname}?fill=${formId}`;
   navigator.clipboard.writeText(shareUrl).then(() => {
@@ -348,11 +402,10 @@ function shareFormLink(formId) {
   });
 }
 
-// View Responses Filter View
+// View Filtered Responses
 function viewResponses(index) {
-  const form = forms[index];
   window.currentViewingFormIndex = index;
-  renderResponsesList(form, '');
+  renderResponsesList(formsCache[index], '');
 }
 
 function renderResponsesList(form, searchQuery = '') {
@@ -390,7 +443,7 @@ function renderResponsesList(form, searchQuery = '') {
     return `
       <div class="card">
         <div style="font-size:12px; color:#7f8c8d; margin-bottom:12px; border-bottom:1px solid #eee; padding-bottom:6px;">
-          Response #${rIndex + 1} &bull; ${resp.submittedAt}
+          Response #${rIndex + 1} &bull; ${new Date(resp.submitted_at).toLocaleString()}
         </div>
         ${answersList}
       </div>
@@ -414,13 +467,12 @@ function renderResponsesList(form, searchQuery = '') {
 }
 
 function filterResponses(query) {
-  const form = forms[window.currentViewingFormIndex];
-  renderResponsesList(form, query);
+  renderResponsesList(formsCache[window.currentViewingFormIndex], query);
 }
 
 // Generate PDF Report
 function generatePDFReport(index) {
-  const form = forms[index];
+  const form = formsCache[index];
   const { jsPDF } = window.jspdf;
   const doc = new jsPDF();
 
