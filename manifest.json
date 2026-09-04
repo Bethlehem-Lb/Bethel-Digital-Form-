@@ -1,0 +1,8 @@
+{
+  "short_name": "Bethle Form",
+  "name": "Bethle Digital Form",
+  "start_url": "./index.html",
+  "background_color": "#f4f6f8",
+  "theme_color": "#2e7d32",
+  "display": "standalone"
+}
