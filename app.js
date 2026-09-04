@@ -10,7 +10,7 @@ document.addEventListener('DOMContentLoaded', () => {
   if (fillFormId) {
     const targetIndex = forms.findIndex(f => String(f.id) === String(fillFormId));
     if (targetIndex !== -1) {
-      document.getElementById('main-header').style.display = 'none'; // Hide Admin Header for Filler
+      document.getElementById('main-header').style.display = 'none'; // Hide Admin Header
       openFormFiller(targetIndex, true);
       return;
     }
@@ -40,12 +40,22 @@ function renderHomeView() {
           <a href="#" onclick="openFormFiller(${index})">Fill</a>
           <a href="#" onclick="shareFormLink(${form.id})">Share</a>
           <a href="#" onclick="viewResponses(${index})">Responses (${form.responses ? form.responses.length : 0})</a>
+          <a href="#" style="color:#dc2626;" onclick="deleteForm(${index})">Delete</a>
         </div>
       </div>
     </div>
   `).join('');
 
   main.innerHTML = html;
+}
+
+// Delete Form Function
+function deleteForm(index) {
+  if (confirm(`Are you sure you want to delete "${forms[index].title}"? This action cannot be undone.`)) {
+    forms.splice(index, 1);
+    localStorage.setItem('bethle_forms', JSON.stringify(forms));
+    renderHomeView();
+  }
 }
 
 // Show Form Builder (Supports Create & Edit)
@@ -75,14 +85,15 @@ function showFormBuilder(editIndex = null) {
   }
 }
 
-// Add Dynamic Field Sector with Updated "Print" Label & Expanded Types
+// Add Dynamic Field Sector
 function addFieldSector(existingData = null) {
   const container = document.getElementById('fields-container');
-  const fieldId = existingData ? existingData.id : Date.now() + Math.random().toString(36).substring(2, 5);
+  const fieldId = existingData ? existingData.id : 'field_' + Date.now() + Math.random().toString(36).substring(2, 5);
 
   const sectorDiv = document.createElement('div');
   sectorDiv.className = 'sector-item';
   sectorDiv.id = `sector-${fieldId}`;
+  sectorDiv.setAttribute('data-field-id', fieldId);
   
   const selectedType = existingData ? existingData.type : 'short';
   const selectedTrigger = existingData ? existingData.trigger : 'none';
@@ -129,7 +140,7 @@ function handleTypeChange(fieldId, type) {
   }
 }
 
-// Save or Update Form & Display Direct Share Modal
+// Save or Update Form Schema
 function saveFormSchema() {
   const title = document.getElementById('form-title').value.trim();
   const description = document.getElementById('form-desc').value.trim();
@@ -147,10 +158,11 @@ function saveFormSchema() {
     const type = el.querySelector('.field-type').value;
     const triggerVal = el.querySelector('.field-trigger').value.trim();
     const optionsVal = el.querySelector('.field-options') ? el.querySelector('.field-options').value : '';
+    const fieldId = el.getAttribute('data-field-id') || ('field_' + Date.now() + Math.random().toString(36).substring(2, 5));
 
     if (label) {
       fields.push({
-        id: Date.now() + Math.random().toString(36).substring(2, 5),
+        id: fieldId,
         label,
         type,
         trigger: triggerVal ? triggerVal : 'none',
@@ -219,7 +231,7 @@ function displayShareModal(formId) {
   document.body.appendChild(modalDiv);
 }
 
-// Form Filler Interface
+// Form Filler View
 function openFormFiller(index, isPublicShare = false) {
   const form = forms[index];
   const main = document.getElementById('main-content');
@@ -233,13 +245,13 @@ function openFormFiller(index, isPublicShare = false) {
     } else if (field.type === 'paragraph') {
       inputHTML = `<textarea name="${field.id}" class="form-control" rows="3" placeholder="${placeholderText}"></textarea>`;
     } else if (field.type === 'date') {
-      inputHTML = `<input type="date" name="${field.id}" class="form-control" required>`;
+      inputHTML = `<input type="text" onfocus="(this.type='date')" onblur="if(!this.value)this.type='text'" name="${field.id}" class="form-control" placeholder="${placeholderText}" required>`;
     } else if (field.type === 'time') {
-      inputHTML = `<input type="time" name="${field.id}" class="form-control" required>`;
+      inputHTML = `<input type="text" onfocus="(this.type='time')" onblur="if(!this.value)this.type='text'" name="${field.id}" class="form-control" placeholder="${placeholderText}" required>`;
     } else if (field.type === 'dropdown') {
       const opts = field.options.length > 0 ? field.options : ['Option 1'];
       inputHTML = `
-        <select name="${field.id}" class="form-control">
+        <select name="${field.id}" class="form-control" required>
           <option value="" disabled selected>${placeholderText}</option>
           ${opts.map(o => `<option value="${escapeHtml(o)}">${escapeHtml(o)}</option>`).join('')}
         </select>
@@ -248,7 +260,7 @@ function openFormFiller(index, isPublicShare = false) {
       const opts = field.options.length > 0 ? field.options : ['1', '2', '3', '4', '5'];
       inputHTML = `
         <label style="font-size:14px; font-weight:600; display:block; margin-bottom:6px;">${placeholderText}</label>
-        <select name="${field.id}" class="form-control">
+        <select name="${field.id}" class="form-control" required>
           <option value="" disabled selected>Select Rating</option>
           ${opts.map(o => `<option value="${escapeHtml(o)}">${escapeHtml(o)}</option>`).join('')}
         </select>
@@ -292,7 +304,7 @@ function openFormFiller(index, isPublicShare = false) {
   `;
 }
 
-// Handle Form Submission with Slash Separator for Multi-Select Checkboxes
+// Handle Form Submission Without Ghost Entries
 function handleFormSubmit(event, index, isPublicShare) {
   event.preventDefault();
   const formData = new FormData(event.target);
@@ -326,7 +338,7 @@ function handleFormSubmit(event, index, isPublicShare) {
   }
 }
 
-// Share Link Function
+// Share Form Link
 function shareFormLink(formId) {
   const shareUrl = `${window.location.origin}${window.location.pathname}?fill=${formId}`;
   navigator.clipboard.writeText(shareUrl).then(() => {
@@ -336,14 +348,13 @@ function shareFormLink(formId) {
   });
 }
 
-// View Responses with Search Button / Filter
+// View Responses Filter View
 function viewResponses(index) {
   const form = forms[index];
   window.currentViewingFormIndex = index;
   renderResponsesList(form, '');
 }
 
-// Render Filtered Responses
 function renderResponsesList(form, searchQuery = '') {
   const main = document.getElementById('main-content');
 
@@ -407,7 +418,7 @@ function filterResponses(query) {
   renderResponsesList(form, query);
 }
 
-// Generate PDF Report with Slashes for Checkboxes
+// Generate PDF Report
 function generatePDFReport(index) {
   const form = forms[index];
   const { jsPDF } = window.jspdf;
