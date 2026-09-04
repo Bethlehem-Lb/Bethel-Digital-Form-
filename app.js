@@ -1,5 +1,5 @@
-// Configuration - Replace with your actual Supabase credentials
-const SUPABASE_URL = 'https://japonmagnijoatupwawe.supabase.co/rest/v1/';
+// Configuration - Corrected Supabase Root URL
+const SUPABASE_URL = 'https://japonmagnijoatupwawe.supabase.co';
 const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImphcG9ubWFnbmlqb2F0dXB3YXdlIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODg1MzI4MTIsImV4cCI6MjEwNDEwODgxMn0.uVEzzBHb8Qqq9UPgJQfzt0y5U6x8qv5DPjAPzTroK-8';
 
 const supabase = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
@@ -32,6 +32,7 @@ async function fetchAllForms() {
 
   if (error) {
     alert('Error loading forms: ' + error.message);
+    main.innerHTML = `<div class="card"><p style="text-align:center; color:#dc2626;">Failed to load forms. Click "+ Create form" above to start.</p></div>`;
     return;
   }
 
@@ -102,7 +103,7 @@ function showFormBuilder(editIndex = null) {
     <button class="action-btn" onclick="saveFormSchema()">${isEditing ? 'Update form' : 'Save form'}</button>
   `;
 
-  if (isEditing && formToEdit.fields.length > 0) {
+  if (isEditing && formToEdit.fields && formToEdit.fields.length > 0) {
     formToEdit.fields.forEach(field => addFieldSector(field));
   } else {
     addFieldSector();
@@ -357,10 +358,16 @@ async function handleFormSubmit(event, formId, isPublic) {
   const formElement = event.target;
   const formData = new FormData(formElement);
   
-  const formObj = formsCache.find(f => String(f.id) === String(formId));
+  let formObj = formsCache.find(f => String(f.id) === String(formId));
+
+  if (!formObj) {
+    const { data } = await supabase.from('forms').select('*').eq('id', formId).single();
+    formObj = data;
+  }
+
   const answers = {};
 
-  if (formObj) {
+  if (formObj && formObj.fields) {
     formObj.fields.forEach(field => {
       if (field.type === 'checkbox_multi') {
         const selected = formData.getAll(field.id);
@@ -483,9 +490,12 @@ function generatePDFReport(index) {
   const fieldsToExport = triggeredFields.length > 0 ? triggeredFields : form.fields;
 
   const tableHeaders = ['S/N', ...fieldsToExport.map(f => f.label)];
+  tableHeaders.push('Submitted At');
+
   const tableData = form.responses.map((resp, idx) => [
     idx + 1,
-    ...fieldsToExport.map(f => resp.answers[f.id] || '')
+    ...fieldsToExport.map(f => resp.answers[f.id] || ''),
+    new Date(resp.submitted_at).toLocaleString()
   ]);
 
   doc.setFont('helvetica', 'bold');
