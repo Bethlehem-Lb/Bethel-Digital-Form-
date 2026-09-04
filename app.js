@@ -1,4 +1,4 @@
-// Configuration - Corrected Supabase Root URL
+// Configuration - Supabase Root URL
 const SUPABASE_URL = 'https://japonmagnijoatupwawe.supabase.co';
 const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImphcG9ubWFnbmlqb2F0dXB3YXdlIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODg1MzI4MTIsImV4cCI6MjEwNDEwODgxMn0.uVEzzBHb8Qqq9UPgJQfzt0y5U6x8qv5DPjAPzTroK-8';
 
@@ -7,18 +7,23 @@ const supabase = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
 let formsCache = [];
 let editingFormIndex = null;
 
-// Initialize App
-document.addEventListener('DOMContentLoaded', async () => {
+// Initialize App (Instant Load)
+document.addEventListener('DOMContentLoaded', () => {
   const urlParams = new URLSearchParams(window.location.search);
   const fillFormId = urlParams.get('fill');
 
   if (fillFormId) {
     document.getElementById('main-header').style.display = 'none';
-    await loadAndRenderFiller(fillFormId);
+    loadAndRenderFiller(fillFormId);
     return;
   }
   
-  await fetchAllForms();
+  // Render home UI immediately so buttons click right away
+  renderHomeView();
+  // Fetch database records in the background
+  fetchAllForms();
+});
+
 });
 
 // Fetch All Forms & Responses from Supabase
