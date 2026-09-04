@@ -1,6 +1,6 @@
 // Configuration - Replace with your actual Supabase credentials
-const SUPABASE_URL = 'YOUR_SUPABASE_PROJECT_URL';
-const SUPABASE_ANON_KEY = 'YOUR_SUPABASE_ANON_KEY';
+const SUPABASE_URL = 'https://japonmagnijoatupwawe.supabase.co/rest/v1/';
+const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImphcG9ubWFnbmlqb2F0dXB3YXdlIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODg1MzI4MTIsImV4cCI6MjEwNDEwODgxMn0.uVEzzBHb8Qqq9UPgJQfzt0y5U6x8qv5DPjAPzTroK-8';
 
 const supabase = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
 
